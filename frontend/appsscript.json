@@ -1,0 +1,35 @@
+{
+  "timeZone": "UTC",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Gmail",
+        "serviceId": "gmail",
+        "version": "v1"
+      }
+    ]
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.addons.execute",
+    "https://www.googleapis.com/auth/contacts.readonly"
+  ],
+  "urlFetchWhitelist": [
+    "https://trustee-catsup-clang.ngrok-free.dev/",
+    "https://*.ngrok-free.app/",
+    "https://*.ngrok-free.dev/",
+    "https://*.ngrok.io/"
+],
+  "gmail": {
+    "name": "Email Risk Scorer",
+    "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/security_black_48dp.png",
+    "contextualTriggers": [
+      {
+        "unconditional": {},
+        "onTriggerFunction": "onGmailMessageOpen"
+      }
+    ]
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8"
+}
