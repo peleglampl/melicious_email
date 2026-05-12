@@ -64,6 +64,18 @@ RULES = [
     "Email addresses recipient by a different name — indicates mass phishing campaign with hardcoded names.",
     "high",
 ),
+(
+    "sender_domain_mismatch", 30,
+    "Brand impersonation",
+    "Sender claims to be a trusted brand but the sending domain is completely unrelated.",
+    "high",
+),
+(
+    "phishing_call_to_action", 20,
+    "Phishing call to action",
+    "Email contains direct instructions to click, verify, or login — hallmark of credential harvesting.",
+    "high",
+),
 ]
 
 
@@ -87,10 +99,10 @@ def compute_score(features: dict) -> tuple[float, list[SignalDetail]]:
             ))
             total += weight
 
-    # Continuous: urgency (0–1) → up to 15 pts
+    # Continuous: urgency (0–1) → up to 25 pts (raised from 15)
     urgency = features.get("urgency_score", 0.0)
     if urgency > 0.1:
-        pts = round(urgency * 15, 1)
+        pts = round(urgency * 25, 1)
         signals.append(SignalDetail(
             name="Urgency language",
             score=pts,
@@ -99,63 +111,74 @@ def compute_score(features: dict) -> tuple[float, list[SignalDetail]]:
         ))
         total += pts
 
-        # Unicode homoglyphs in subject line
-        homoglyphs = features.get("unicode_homoglyphs", [])
-        if homoglyphs:
-            pts = min(len(homoglyphs) * 10, 25)
-            signals.append(SignalDetail(
-                name="Unicode homoglyphs in subject",
-                score=pts,
-                description=f"Subject contains characters that visually mimic Latin letters: {', '.join(homoglyphs[:3])}. Used to bypass keyword filters.",
-                severity="high",
-            ))
-            total += pts
+    # Unicode homoglyphs in subject line — fixed: was inside urgency block
+    homoglyphs = features.get("unicode_homoglyphs", [])
+    if homoglyphs:
+        pts = min(len(homoglyphs) * 10, 25)
+        signals.append(SignalDetail(
+            name="Unicode homoglyphs in subject",
+            score=pts,
+            description=f"Subject contains characters that visually mimic Latin letters: {', '.join(homoglyphs[:3])}. Used to bypass keyword filters.",
+            severity="high",
+        ))
+        total += pts
 
-        # Continuous: suspicious links → up to 20 pts
-        sus_links = features.get("suspicious_link_count", 0)  # ← back to column 4
-        if sus_links > 0:
-            pts = min(sus_links * 7, 20)
-            signals.append(SignalDetail(
-                name="Suspicious links",
-                score=pts,
-                description=f"{sus_links} link(s) use URL shorteners, raw IPs, or lookalike domains.",
-                severity="high" if sus_links >= 2 else "medium",
-            ))
-            total += pts
+    # Continuous: suspicious links → up to 20 pts — fixed: was inside urgency block
+    sus_links = features.get("suspicious_link_count", 0)
+    if sus_links > 0:
+        pts = min(sus_links * 7, 20)
+        signals.append(SignalDetail(
+            name="Suspicious links",
+            score=pts,
+            description=f"{sus_links} link(s) use URL shorteners, raw IPs, or lookalike domains.",
+            severity="high" if sus_links >= 2 else "medium",
+        ))
+        total += pts
 
-        # Confirmed malicious URLs via Google Safe Browsing
-        flagged_urls = features.get("flagged_urls", [])  # ← back to column 4
-        if flagged_urls:
-            pts = min(len(flagged_urls) * 25, 40)
-            signals.append(SignalDetail(
-                name="Confirmed malicious URLs",
-                score=pts,
-                description=f"{len(flagged_urls)} link(s) flagged by Google Safe Browsing as malware or phishing.",
-                severity="high",
-            ))
-            total += pts
+    # Confirmed malicious URLs via Google Safe Browsing — fixed: was inside urgency block
+    flagged_urls = features.get("flagged_urls", [])
+    if flagged_urls:
+        pts = min(len(flagged_urls) * 25, 40)
+        signals.append(SignalDetail(
+            name="Confirmed malicious URLs",
+            score=pts,
+            description=f"{len(flagged_urls)} link(s) flagged by Google Safe Browsing as malware or phishing.",
+            severity="high",
+        ))
+        total += pts
 
-        # Bad sender IP via AbuseIPDB
-        if features.get("bad_sender_ip", False):  # ← back to column 4
-            signals.append(SignalDetail(
-                name="Malicious sender IP",
-                score=30,
-                description="The sending server's IP address is flagged in AbuseIPDB — a known spam or attack source.",
-                severity="high",
-            ))
-            total += 30
+    # Bad sender IP via AbuseIPDB — fixed: was inside urgency block
+    if features.get("bad_sender_ip", False):
+        signals.append(SignalDetail(
+            name="Malicious sender IP",
+            score=30,
+            description="The sending server's IP address is flagged in AbuseIPDB — a known spam or attack source.",
+            severity="high",
+        ))
+        total += 30
 
-    # Threat type classification
+    # Threat type classification — raised from 10pts to 15pts per type
     threat_types = features.get("threat_types", {})
     if threat_types:
-        # Each identified threat type adds points
-        pts = min(len(threat_types) * 10, 25)
+        pts = min(len(threat_types) * 15, 40)
         type_names = ", ".join(threat_types.keys())
         signals.append(SignalDetail(
             name="Threat pattern detected",
             score=pts,
             description=f"Email content matches known attack patterns: {type_names}.",
             severity="high",
+        ))
+        total += pts
+
+    # ML classifier score (0.0-1.0) → up to 40 pts
+    ml_score = features.get("ml_phishing_score", 0.0)
+    if ml_score > 0.5:
+        pts = round(ml_score * 40, 1)
+        signals.append(SignalDetail(
+            name="ML classifier",
+            score=pts,
+            description=f"Text classifier predicts {ml_score:.0%} probability of phishing.",
+            severity="high" if ml_score > 0.8 else "medium",
         ))
         total += pts
 
@@ -196,14 +219,14 @@ def compute_score(features: dict) -> tuple[float, list[SignalDetail]]:
 
 def verdict_from_score(score: float, num_signals: int) -> tuple[str, str, str]:
     """Returns (verdict, confidence, recommendation)."""
-    if score >= 65:
+    if score >= 55:
         verdict = "phishing"
         confidence = "high" if num_signals >= 3 else "medium"
         recommendation = (
             "Do not click any links or download attachments. "
             "Report this email as phishing and delete it."
         )
-    elif score >= 45:
+    elif score >= 35:
         verdict = "suspicious"
         confidence = "medium" if num_signals >= 2 else "low"
         recommendation = (
