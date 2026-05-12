@@ -170,15 +170,14 @@ def compute_score(features: dict) -> tuple[float, list[SignalDetail]]:
         ))
         total += pts
 
-    # ML classifier score (0.0-1.0) → up to 40 pts
     ml_score = features.get("ml_phishing_score", 0.0)
-    if ml_score > 0.5:
-        pts = round(ml_score * 40, 1)
+    if ml_score > 0.7:  # was 0.5
+        pts = round(ml_score * 25, 1)  # was 40
         signals.append(SignalDetail(
             name="ML classifier",
             score=pts,
             description=f"Text classifier predicts {ml_score:.0%} probability of phishing.",
-            severity="high" if ml_score > 0.8 else "medium",
+            severity="high" if ml_score > 0.85 else "medium",
         ))
         total += pts
 
