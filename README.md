@@ -351,8 +351,8 @@ This is an actual phishing email that landed in my inbox, and what Phishnet caug
 
 **The email:** Sent from `g97496398@gmail.com` claiming to be a PayPal payment confirmation for $245. Addressed to "Dear John" — my name is not John.
 
-<img src="examples/phishing_body.jpg" width="400"/>
-<img src="examples/phishing_result.jpg" width="400" height="600"/>
+<img src="examples/phishing_body.JPG" width="400"/>
+<img src="examples/phishing_result.JPG" width="400" height="600"/>
 
 **What Phishnet detected:**
 
